@@ -1,0 +1,544 @@
+var got_campaign = false;
+var count_get_campaign = 0;
+var count_login = 0;
+var count_login_timeclock = 0;
+var count_logout_timeclock = 0;
+
+function dismiss() {
+    document.cookie="newChromeAlertBox=false";
+    $(".new-chrome-alert-box").fadeOut('slow');
+}
+
+function showMessage() {
+    $(".new-chrome-alert-box").fadeIn('slow');
+}
+
+$(document).ready(function() {
+
+//    var is_chrome = navigator.userAgent.toLowerCase().indexOf('chrome') > -1;
+//
+//    if( is_chrome )
+//    {
+//        var browserInfoArr = navigator.userAgent.split(" ");
+//        var browserInfo;
+//        for(i=0; i<browserInfoArr.length; i++)
+//        {
+//            if( browserInfoArr[i].indexOf("Chrome") === 0 )
+//            {
+//                browserInfo = browserInfoArr[i].split("/");
+//                break;
+//            }
+//        }
+//        if( browserInfo !== '' )
+//        {
+//            var browserVersion = browserInfo[1].split(".");
+//
+//            var cookieInfo = document.cookie.split(" ");
+//
+//            if( browserInfo[0] === 'Chrome' && browserVersion[0] >= 47 && window.location.protocol != "https:" ) {
+//                window.top.location.href = "https://" + window.location.hostname;
+//            }
+//        }
+//    }
+
+    if( window.location.protocol != "https:" ) {
+        window.top.location.href = "https://" + window.location.hostname;
+    }
+
+
+
+    $("#login-agent").click(function() {
+        $("#header-text-select").hide("slide", { direction: "right" }, 500, function() {
+            $("#header-text-agent").show("slide", { direction: "right", easing: 'easeOutCubic' }, 500);
+        });
+        $("#login-choose").slideUp();
+        $("#form-signin").slideDown();
+    });
+
+    $("#login-admin").click(function() {
+        var win = window.open('https://ycc.ytel.com/', '_blank');
+        win.focus();
+    });
+
+    // Get campaign button
+    $("#btn-get-campaign").click(function() {
+        ga('send', 'event', 'button', 'click', 'get campaign', ++count_get_campaign);
+
+        if ($("#agent-login").val().length > 1 && $("#agent-password").val().length > 3)
+        {
+            $("#get-campaign-loader").fadeIn();
+            // Check for live agent
+            $.ajax({
+                type: "POST",
+                dataType: 'json',
+                url: './ajax/login_check.php',
+                data: {login: $("#agent-login").val(), pass: $("#agent-password").val()},
+                success: function(data) {
+                      $("#success-message").hide();
+                     $("#error-message").hide();
+                    if(data.status == 'warning') {
+                        $("#warning-message").text(data.message).slideDown();
+                    }
+                      $("#time-clock-login").show();
+                      $("#time-clock-login-span").show();
+                      // ("#time-clock-login-auto").css("display",'inline-block !important');
+                         $("#time-clock-login-auto").css("margin-bottom",'10px');
+                    if(data.user_group_check == 'N') {
+                          $("#time-clock-login").hide();
+                           $("#time-clock-login-auto").css("margin-bottom",'-20px');
+                           $("#time-clock-login-span").hide();
+                           console.log("login user_group_check")
+                           console.log($("#btn-time-clock-logout"))
+                          
+                           
+                           
+                           setTimeout(function(){ 
+
+                            $("#btn-time-clock-logout").hide();
+                           $("#btn-time-clock-logout").css("display",'none !important');
+
+                            }, 1000);
+                           
+                          
+                    
+                    }
+
+
+                    if(data.status == 'error' ) {
+
+                        $("#error-message").text(data.message).slideDown();
+                        $("#get-campaign-loader").fadeOut();
+                    } else {
+
+
+                        if(data.force_change_password=='Y'){
+                            $("#signup-form-pass").fadeIn();
+                            $(".login-step-1").hide();
+                            $(".login-step-4").show();
+                            $("#btn-submit2").show();
+                            $("#login_header").html("Reset Password");
+                            $("#warning-message").hide();
+
+                            
+                        }else{
+                              $("#error-message").slideUp();
+
+                           $.ajax({
+                                type: "POST",
+                                url: '/agc/vdc_db_query.php',
+                                data: {ACTION: 'LogiNCamPaigns', user: $("#agent-login").val(), pass: $("#agent-password").val()},
+                                success: function(data) {
+                                    ga('send', 'event', 'ajax_return', 'succeed', 'get campaign');
+
+                                    console.log("option:option:option:option:option")
+                                    console.log()
+                                    console.log($(data).find("option:eq(1)").html())
+
+                              
+                                    if ($(data).find("option").length <= 1)
+                                    {
+                //                        $("#btn-get-campaign").removeClass("btn-success").addClass("btn-primary");
+                //                        $("#select-campaign").removeClass("btn-success btn-warning");
+
+                                       // $("#btn-submit2")
+
+                                        if ($(data).find("option:first").html() === 'SELECT A CAMPAIGN')
+                                        {
+                                            dialogError("You are not allow to access any campaigns, please contact your administrator.");
+                                        }
+                                        else if ($(data).find("option:first").html() === '-- YOU MUST LOG IN TO THE TIMECLOCK FIRST --')
+                                        {
+                                            // If agent required to login to time clock first
+                                            $("<div>You are required to login to Time Clock first. Do you want to login to Time Clock now?</div>").dialog({
+                                                title: "Login to Time Clock",
+                                                modal: true,
+                                                buttons: [{
+                                                        text: "No",
+                                                        click: function() {
+                                                            $(this).dialog("close");
+                                                        }
+                                                    },
+                                                    {
+                                                        text: "Yes, Login to Time Clock Now",
+                                                        click: function() {
+                                                            $("#time-clock-logout").val(0);
+                                                            $("#time-clock-login").prop("checked", true);
+                                                            $("#time-clock-login-first").val(1);
+
+                                                            do_login();
+
+                                                            $(this).dialog("close");
+                                                        }
+                                                    }]
+                                            });
+                                        }
+                                        else
+                                        {
+                                            dialogError();
+                                        }
+                                    }
+                                    else
+                                    {
+                                        $("#select-campaign option").remove();
+                                        $.each($(data).find("option"), function(k, v) {
+                                            if($(v).html() == '-- PLEASE SELECT A CAMPAIGN --')
+                                                $(v).html("Select a Campaign");
+                                            $("#select-campaign").append(v);
+                                        });
+                                        $("#select-campaign").val("");
+
+                //                        $("#btn-get-campaign").removeClass("btn-primary").addClass("btn-success");
+                //                        $("#select-campaign").removeClass("btn-success").addClass("btn-warning");
+
+                                        $(".login-step-1").slideUp("fast");
+                                        $(".login-step-2").slideDown();
+
+
+
+                                              if($(data).find("option").length==2){
+                                        
+                                        var campaign_value = $(data).find("option:eq(1)").html();
+                                         
+                                        var campaign_value_array=  campaign_value.split("-");
+                                         console.log(campaign_value_array[0].replace(/\s/g, ""));
+                                      //  $("#select-campaign").val(campaign_value_array[0].replace(/\s/g, ""));
+
+
+                                   
+
+
+                                    $("#login-loader").fadeIn().css('display', 'inline-block');
+                                        $("#time-clock-logout").val(0);
+
+                                        do_login(campaign_value_array[0].replace(/\s/g, ""));
+                                    }
+
+
+                                    }
+                                },
+                                error: function(data)
+                                {
+                                    ga('send', 'event', 'ajax_return', 'fail', 'get campaign');
+                                }
+                            }).done(function() {
+                                $("#get-campaign-loader").fadeOut();
+                            });
+                        }
+                      
+                    }
+                }
+            });
+            // Use ajax to get the campaign
+
+        }
+        else
+        {
+            dialogError();
+        }
+    });
+
+
+    // Agent login and password
+    $("#agent-login, #agent-password").keypress(function() {
+        if ($("#select-campaign option").length != 1)
+        {
+            $("#select-campaign option").remove();
+            $("#select-campaign").append('<option value="">Please input login and password first</option>');
+
+            $("#btn-submit").attr('disabled', 'disabled');
+        }
+    });
+
+
+
+
+    // Select
+    $("#select-campaign").change(function() {
+        if ($("#select-campaign option:selected").length > 0 && $("#select-campaign option:selected").val() != '')
+        {
+            $("#btn-submit").removeAttr('disabled');
+//            $("#select-campaign").removeClass("btn-warning").addClass("btn-success");
+        }
+        else
+        {
+            $("#btn-submit").attr('disabled', 'disabled');
+//            $("#select-campaign").removeClass("btn-success").addClass("btn-warning");
+        }
+    });
+
+    // Do login
+    $("#form-signin").submit(function(event) {
+
+        if ($("#time-clock-logout").val() == 1)
+            event.preventDefault();
+    });
+
+    $("#btn-submit").click(function() {
+        if (!$("#btn-time-clock-logout").prop("checked"))
+        {
+            ga('send', 'event', 'button', 'click', 'login', ++count_login);
+            if ($("#time-clock-login").prop("checked"))
+                ga('send', 'event', 'checkbox', 'checked', 'manual login timeclock', ++count_login_timeclock);
+        }
+        else
+        {
+            ga('send', 'event', 'button', 'click', 'manual logout timeclock', ++count_logout_timeclock);
+        }
+
+        $("#login-loader").fadeIn().css('display', 'inline-block');
+        $("#time-clock-logout").val(0);
+
+        do_login();
+    });
+
+   $("#btn-submit2").click(function() {
+
+    
+    var agent_login = $("#agent-login").val();
+    var pass_word = $("#agent-password3").val();
+    var pass_word_confirm = $("#agent-password4").val();
+
+        do_reset_login(agent_login,pass_word,pass_word_confirm);
+    });
+
+
+
+    $("#btn-time-clock-logout").click(function() {
+        $("#logout-time-clock-loader").fadeIn();
+        $("#time-clock-logout").val(1);
+
+        do_login();
+    });
+
+    $("#btn-go-back-to-step-1").click(function() {
+        $(".login-step-1").slideDown();
+        $(".login-step-2").slideUp();
+        $("#btn-get-campaign").removeClass("btn-success").addClass("btn-primary");
+    });
+});
+
+
+
+
+
+function do_reset_login(agent_login,password_old,password_confirm)
+{
+    // var loginStep2Buttons = $(".login-step-2");
+    // loginStep2Buttons.prop('disabled', true);
+
+    $.ajax({
+        type: "POST",
+        url: './ajax/login_reset_pass.php',
+        data:{'pass_old':password_old,'pass': password_confirm,'login':agent_login},
+        // dataType: 'json',
+        success: function(data) {
+            var returnedData = JSON.parse(data);
+            console.log("data:data")
+            console.log(returnedData)
+            console.log(returnedData.message)
+
+            if(returnedData.status == 'error' ) {
+
+                        $("#error-message").text(returnedData.message).slideDown();
+                        $("#get-campaign-loader").fadeOut();
+                        $("#warning-message").hide();
+                    }else{
+                         $("#get-campaign-loader").fadeOut();
+                           $("#success-message").text(returnedData.message).slideDown();
+                           $("#error-message").hide();
+                           $("#signup-form-pass").fadeOut();
+                            $(".login-step-1").show();
+                            $(".login-step-4").hide();
+                            $("#btn-submit2").hide();
+                           
+                            $("#login_header").html("Agent Login");
+                            $("#warning-message").hide();
+                            
+                            
+                    }
+            // if (data.status === 'success')
+            // {
+     
+            // }
+            // else
+            // {
+            //     if(typeof data.code !== 'undefined' && data.code == 1) {
+            //         dialogError(data.message, 'Billing');
+            //     } else {
+            //         dialogError(data.message);
+            //     }
+
+            //     $(".loader").fadeOut();
+            // }
+
+          //  loginStep2Buttons.prop('disabled', false);
+        },
+        error: function(xhr, status, error) {
+            ga('send', 'event', 'ajax_return', 'fail', 'login');
+            alert(xhr.responseText);
+            $(".loader").fadeOut();
+
+           // loginStep2Buttons.prop('disabled', false);
+        }
+    });
+}
+function do_login(campaign_value ="")
+{
+    var loginStep2Buttons = $(".login-step-2");
+    loginStep2Buttons.prop('disabled', true);
+
+    var current_camp = $("#select-campaign").val()!= undefined || $("#select-campaign").val() != ''  ? $("#select-campaign").val() : campaign_value=="" ? $("#select-campaign").val():campaign_value;
+        console.log("campaign_value:campaign_value1")
+        console.log(campaign_value)
+        campaign_value = campaign_value!="" ? campaign_value : $("#select-campaign").val();
+         console.log(campaign_value)
+    $.ajax({
+        type: "POST",
+        url: './ajax/login_ajax.php',
+        data: $("#form-signin").serialize() + '&campaign=' + campaign_value ,
+        dataType: 'json',
+        success: function(data) {
+            if (data.status === 'success')
+            {
+                if (typeof data.time_clock_action !== 'undefined')
+                {
+                    if (typeof data.time_clock_message !== 'undefined')
+                    {
+                        if (data.time_clock_status === 'success')
+                        {
+                            if (data.time_clock_action === 'login')
+                            {
+                                dialogProcess(data.time_clock_message[0] + "<br>" + data.time_clock_message[1]);
+                            }
+                            else if (data.time_clock_action === 'login-first')
+                            {
+                                $("#time-clock-logout").val(0);
+                                $("#time-clock-login").prop("checked", false);
+                                $("#time-clock-login-first").val(0);
+
+                                dialogProcessLoginStep2(data.time_clock_message[0] + "<br>" + data.time_clock_message[1]);
+                                $(".loader").fadeOut();
+                            }
+                            else if (data.time_clock_action === 'logout')
+                            {
+                                dialogSuccess(data.time_clock_message[0] + "<br>" + data.time_clock_message[1]);
+                                $(".loader").fadeOut();
+                            }
+                            else
+                            {
+                                dialogError("Something went wrong, please try again.");
+                                $(".loader").fadeOut();
+                            }
+                        }
+                        else
+                        {
+                            dialogError(data.time_clock_message[0]);
+                            $(".loader").fadeOut();
+                        }
+                    }
+                    else
+                    {
+                        dialogError("Something went wrong, please try again.");
+                        $(".loader").fadeOut();
+                    }
+                }
+                else
+                {
+                    
+                    $("#agent-password4").val("1");
+                     $("#agent-password3").val("1");
+                    $("#form-submit").click();
+                    return;
+//                        window.location = './?agent';
+                }
+            }
+            else
+            {
+                if(typeof data.code !== 'undefined' && data.code == 1) {
+                    dialogError(data.message, 'Billing');
+                } else {
+                    dialogError(data.message);
+                }
+
+                $(".loader").fadeOut();
+            }
+
+            loginStep2Buttons.prop('disabled', false);
+        },
+        error: function() {
+            ga('send', 'event', 'ajax_return', 'fail', 'login');
+            dialogError("Something went wrong, please try again.");
+            $(".loader").fadeOut();
+
+            loginStep2Buttons.prop('disabled', false);
+        }
+    });
+}
+
+function dialogError(message, title)
+{
+    if (typeof message === 'undefined')
+        message = 'We can\'t locate your account with the login and password you provided or you don\'t have any campaigns assigned. Please contact your administrator.';
+
+    if(typeof title === 'undefined') {
+        title = 'Error!';
+    }
+
+    $("<div>" + message + "</div>").dialog({
+        title: title,
+        modal: true,
+        buttons: [{
+                text: "Ok",
+                click: function() {
+                    $(this).dialog("close");
+                }
+            }]
+    });
+}
+
+function dialogSuccess(message)
+{
+    $("<div>" + message + "</div>").dialog({
+        title: "Success!",
+        modal: true,
+        buttons: [{
+                text: "Ok",
+                click: function() {
+                    $(this).dialog("close");
+                }
+            }]
+    });
+}
+
+function dialogProcess(message)
+{
+    $("<div>" + message + "</div>").dialog({
+        title: "Message",
+        modal: true,
+        buttons: [{
+                text: "Proceed to Ytel",
+                click: function() {
+                    $("#form-submit").click();
+                }
+            }]
+    });
+}
+
+function dialogProcessLoginStep2(message)
+{
+    $("<div>" + message + "</div>").dialog({
+        title: "Message",
+        modal: true,
+        buttons: [{
+                text: "Get Campaign",
+                click: function() {
+                    $("#btn-get-campaign").click();
+                    $(this).dialog("close");
+                }
+            }],
+        close: function() {
+            // Hide login time clock auto checkbox
+            $("#time-clock-login-auto").hide();
+        }
+    });
+}
